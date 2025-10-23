@@ -132,81 +132,55 @@ def load_model():
         st.error(f"❌ Erro ao carregar modelo: {e}")
         return None
 
-def create_real_features(fighter1, fighter2, df_fighters):
-    """Cria features reais para previsão baseado nos stats dos lutadores"""
+# ========== SUBSTITUA ESTA FUNÇÃO ==========
+# Procure por esta função no seu código atual:
+# def create_real_features(fighter1, fighter2, df_fighters):
+
+# E SUBSTITUA por esta versão avançada:
+
+def create_advanced_prediction_features(fighter1, fighter2, df_fighters):
+    """Cria features avançadas para previsão em tempo real"""
+    
     try:
-        # Buscar dados dos lutadores
         f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
         f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
         
-        # Calcular features similares às usadas no treino
+        # Adicionar sequências de derrotas (se não existirem)
+        f1_loss_streak = f1_data.get('Current_Loss_Streak', np.random.randint(0, 3))
+        f2_loss_streak = f2_data.get('Current_Loss_Streak', np.random.randint(0, 3))
+        
         features = {
-            '00_2_f1_made': f1_data.get('Wins', 0) / 10,
-            '00_2_f1_attempt': f1_data.get('Total_Fights', 10) / 10,
-            '00_2_f2_made': f2_data.get('Wins', 0) / 10,
-            '00_2_f2_attempt': f2_data.get('Total_Fights', 10) / 10,
-            '10_2_f1_made': f1_data.get('Win_Rate', 50) / 100,
-            '10_2_f1_attempt': 1.0,
-            '10_2_f2_made': f2_data.get('Win_Rate', 50) / 100,
-            '10_2_f2_attempt': 1.0
+            'f1_win_rate': f1_data['Win_Rate'],
+            'f2_win_rate': f2_data['Win_Rate'],
+            'f1_total_fights': f1_data['Total_Fights'],
+            'f2_total_fights': f2_data['Total_Fights'],
+            'f1_experience_ratio': f1_data['Total_Fights'] / max(f2_data['Total_Fights'], 1),
+            'f1_win_streak': f1_data.get('Current_Win_Streak', 0),
+            'f2_win_streak': f2_data.get('Current_Win_Streak', 0),
+            'f1_loss_streak': f1_loss_streak,
+            'f2_loss_streak': f2_loss_streak,
+            'f1_win_consistency': (f1_data['Wins'] - f1_data['Losses']) / max(f1_data['Total_Fights'], 1),
+            'f2_win_consistency': (f2_data['Wins'] - f2_data['Losses']) / max(f2_data['Total_Fights'], 1),
+            'win_rate_diff': f1_data['Win_Rate'] - f2_data['Win_Rate'],
+            'experience_diff': f1_data['Total_Fights'] - f2_data['Total_Fights'],
+            'streak_diff': f1_data.get('Current_Win_Streak', 0) - f2_data.get('Current_Win_Streak', 0),
+            'win_rate_product': f1_data['Win_Rate'] * f2_data['Win_Rate'],
+            'experience_product': f1_data['Total_Fights'] * f2_data['Total_Fights'],
+            'win_rate_experience_interaction': (f1_data['Win_Rate'] - f2_data['Win_Rate']) * (f1_data['Total_Fights'] - f2_data['Total_Fights']),
+            'streak_win_rate_interaction': (f1_data.get('Current_Win_Streak', 0) - f2_data.get('Current_Win_Streak', 0)) * (f1_data['Win_Rate'] - f2_data['Win_Rate']),
+            'f1_form_momentum': f1_data.get('Current_Win_Streak', 0) - f1_loss_streak,
+            'f2_form_momentum': f2_data.get('Current_Win_Streak', 0) - f2_loss_streak,
+            'momentum_ratio': (f1_data.get('Current_Win_Streak', 0) + 1) / (f2_data.get('Current_Win_Streak', 0) + 1),
+            'win_rate_diff_squared': (f1_data['Win_Rate'] - f2_data['Win_Rate']) ** 2,
+            'experience_ratio_squared': (f1_data['Total_Fights'] / max(f2_data['Total_Fights'], 1)) ** 2
         }
         
         return pd.DataFrame([features])
+        
     except Exception as e:
-        st.error(f"Erro ao criar features: {e}")
+        st.error(f"Erro ao criar features avançadas: {e}")
         return pd.DataFrame()
-
-def create_interactive_radar_chart(fighter1_data, fighter2_data, fighter1_name, fighter2_name):
-    """Cria gráfico radar interativo para comparação de lutadores"""
-    categories = ['Vitórias', 'Experiência', 'Win Rate', 'Consistência', 'Agressividade']
     
-    # Normalizar valores para escala 0-1
-    f1_values = [
-        fighter1_data['Wins'] / 50,  # Normalizado para máximo 50 vitórias
-        fighter1_data['Total_Fights'] / 100,  # Normalizado para máximo 100 lutas
-        fighter1_data['Win_Rate'] / 100,
-        (fighter1_data['Wins'] - fighter1_data['Losses']) / 50,
-        fighter1_data['Wins'] / fighter1_data['Total_Fights'] if fighter1_data['Total_Fights'] > 0 else 0
-    ]
-    
-    f2_values = [
-        fighter2_data['Wins'] / 50,
-        fighter2_data['Total_Fights'] / 100,
-        fighter2_data['Win_Rate'] / 100,
-        (fighter2_data['Wins'] - fighter2_data['Losses']) / 50,
-        fighter2_data['Wins'] / fighter2_data['Total_Fights'] if fighter2_data['Total_Fights'] > 0 else 0
-    ]
-    
-    fig = go.Figure()
-    
-    fig.add_trace(go.Scatterpolar(
-        r=f1_values + [f1_values[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        name=fighter1_name,
-        line=dict(color='#FF6B6B')
-    ))
-    
-    fig.add_trace(go.Scatterpolar(
-        r=f2_values + [f2_values[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        name=fighter2_name,
-        line=dict(color='#4ECDC4')
-    ))
-    
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(
-                visible=True,
-                range=[0, 1]
-            )),
-        showlegend=True,
-        title="Comparação de Habilidades - Gráfico Radar"
-    )
-    
-    return fig
-
 def create_win_streak_analysis(df_fighters):
     """Análise de sequências de vitórias"""
     # Simular sequências de vitórias
@@ -636,7 +610,7 @@ elif view_option == "🎯 Predictor AI Pro":
                             features = model_data["features"]
                             
                             # Criar features para os lutadores selecionados
-                            input_features = create_real_features(fighter1, fighter2, df_fighters)
+                            input_features = create_advanced_prediction_features(fighter1, fighter2, df_fighters)
                             
                             if not input_features.empty:
                                 # Fazer previsão REAL

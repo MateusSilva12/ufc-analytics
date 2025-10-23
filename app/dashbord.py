@@ -1,4 +1,4 @@
-# app/fighters_dashboard.py - VERSÃO FINAL SEM SIMULAÇÕES
+# app/fighters_dashboard.py - VERSÃO FINAL COMPLETA
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -92,6 +92,10 @@ st.markdown("""
         padding: 0.2rem 0.5rem;
         border-radius: 5px;
         font-weight: bold;
+    }
+    .data-missing {
+        color: #FF6B6B;
+        font-style: italic;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -262,6 +266,34 @@ def create_timeline_analysis():
     
     return fig
 
+def get_fighter_display_data(fighter_data):
+    """Retorna dados formatados para exibição com tratamento elegante para dados faltantes"""
+    wins = fighter_data.get('Wins', 'N/A')
+    losses = fighter_data.get('Losses', 'N/A')
+    draws = fighter_data.get('Draws', 0)
+    win_rate = fighter_data.get('Win_Rate', 'N/A')
+    stance = fighter_data.get('Stance', 'Não informado')
+    weight_class = fighter_data.get('Weight_Class', 'Não informada')
+    streak = fighter_data.get('Current_Win_Streak', 'Não informada')
+    longest_streak = fighter_data.get('Longest_Win_Streak', 'Não informada')
+    age = fighter_data.get('Age', 'N/A')
+    
+    # Calcular sequência baseada no record se não existir
+    if streak == 'Não informada' and wins != 'N/A' and losses != 'N/A':
+        streak = f"≈ {wins}"  # Estimativa baseada no record
+    
+    return {
+        'wins': wins,
+        'losses': losses,
+        'draws': draws,
+        'win_rate': win_rate,
+        'stance': stance,
+        'weight_class': weight_class,
+        'streak': streak,
+        'longest_streak': longest_streak,
+        'age': age
+    }
+
 # ========== CARREGAMENTO DE DADOS ==========
 try:
     df_fighters, df_fights_basic, df_fights_real = load_data()
@@ -290,12 +322,30 @@ if 'Alex Pereira' in df_fighters['Name'].values:
     st.sidebar.success(f"✅ Alex Pereira encontrado")
     st.sidebar.write(f"Record: {alex.get('Wins', 'N/A')}W-{alex.get('Losses', 'N/A')}L")
     st.sidebar.write(f"Win Rate: {alex.get('Win_Rate', 'N/A')}%")
-    st.sidebar.write(f"Idade: {alex.get('Age', 'N/A')}")
 else:
     st.sidebar.error("❌ Alex Pereira NÃO encontrado nos dados")
 
-# Mostrar colunas disponíveis
-st.sidebar.write(f"📋 Colunas disponíveis: {list(df_fighters.columns)}")
+# Mostrar estatísticas de completude dos dados
+st.sidebar.markdown("### 📊 Completude dos Dados")
+
+total_fighters = len(df_fighters)
+complete_records = len(df_fighters[df_fighters['Wins'].notna() & df_fighters['Losses'].notna()])
+complete_win_rates = len(df_fighters[df_fighters['Win_Rate'].notna()])
+
+if 'Weight_Class' in df_fighters.columns:
+    complete_weight_classes = len(df_fighters[df_fighters['Weight_Class'].notna()])
+else:
+    complete_weight_classes = 0
+
+if 'Stance' in df_fighters.columns:
+    complete_stances = len(df_fighters[df_fighters['Stance'].notna()])
+else:
+    complete_stances = 0
+
+st.sidebar.write(f"📈 Records: {complete_records}/{total_fighters}")
+st.sidebar.write(f"🎯 Win Rates: {complete_win_rates}/{total_fighters}")
+st.sidebar.write(f"⚖️ Categorias: {complete_weight_classes}/{total_fighters}")
+st.sidebar.write(f"🥊 Posturas: {complete_stances}/{total_fighters}")
 
 # Sidebar aprimorada
 with st.sidebar:
@@ -468,17 +518,15 @@ if view_option == "🏠 Dashboard Premium":
         cols = st.columns(3)
         for idx, (_, fighter) in enumerate(legendary_fighters.iterrows()):
             with cols[idx % 3]:
-                stance = fighter.get('Stance', 'N/A')
-                weight_class = fighter.get('Weight_Class', 'N/A')
-                streak = fighter.get('Current_Win_Streak', 'N/A')
+                fighter_display = get_fighter_display_data(fighter)
                 
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h4>🥊 {fighter['Name']}</h4>
-                    <p>🏆 {fighter['Wins']}W - {fighter['Losses']}L - {fighter.get('Draws', 0)}D</p>
-                    <p>📊 {fighter['Win_Rate']}% Win Rate</p>
-                    <p>🔥 Sequência: {streak}</p>
-                    <p>🎯 {stance} | {weight_class}</p>
+                    <p>🏆 {fighter_display['wins']}W - {fighter_display['losses']}L - {fighter_display['draws']}D</p>
+                    <p>📊 {fighter_display['win_rate']}% Win Rate</p>
+                    <p>🔥 Sequência: {fighter_display['streak']}</p>
+                    <p>🎯 {fighter_display['stance']} | {fighter_display['weight_class']}</p>
                 </div>
                 """, unsafe_allow_html=True)
     
@@ -650,25 +698,18 @@ elif view_option == "🎯 Predictor AI Pro":
             
             if fighter1:
                 f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
+                f1_display = get_fighter_display_data(f1_data)
                 
-                # Card detalhado do lutador 1 - APENAS DADOS REAIS
-                wins1 = f1_data.get('Wins', 'N/A')
-                losses1 = f1_data.get('Losses', 'N/A')
-                win_rate1 = f1_data.get('Win_Rate', 'N/A')
-                stance1 = f1_data.get('Stance', 'N/A')
-                weight_class1 = f1_data.get('Weight_Class', 'N/A')
-                streak1 = f1_data.get('Current_Win_Streak', 'N/A')
-                longest_streak1 = f1_data.get('Longest_Win_Streak', 'N/A')
-                
+                # Card detalhado do lutador 1 - COM TRATAMENTO ELEGANTE PARA DADOS FALTANTES
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h3>🥊 {fighter1}</h3>
-                    <p><strong>Record:</strong> {wins1}W - {losses1}L - {f1_data.get('Draws', 0)}D</p>
-                    <p><strong>Win Rate:</strong> {win_rate1}%</p>
-                    <p><strong>Sequência Atual:</strong> {streak1}</p>
-                    <p><strong>Melhor Sequência:</strong> {longest_streak1}</p>
-                    <p><strong>Postura:</strong> {stance1}</p>
-                    <p><strong>Categoria:</strong> {weight_class1}</p>
+                    <p><strong>Record:</strong> {f1_display['wins']}W - {f1_display['losses']}L - {f1_display['draws']}D</p>
+                    <p><strong>Win Rate:</strong> {f1_display['win_rate']}%</p>
+                    <p><strong>Sequência Atual:</strong> {f1_display['streak']}</p>
+                    <p><strong>Melhor Sequência:</strong> {f1_display['longest_streak']}</p>
+                    <p><strong>Postura:</strong> {f1_display['stance']}</p>
+                    <p><strong>Categoria:</strong> {f1_display['weight_class']}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -679,25 +720,18 @@ elif view_option == "🎯 Predictor AI Pro":
             
             if fighter2:
                 f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
+                f2_display = get_fighter_display_data(f2_data)
                 
-                # Card detalhado do lutador 2 - APENAS DADOS REAIS
-                wins2 = f2_data.get('Wins', 'N/A')
-                losses2 = f2_data.get('Losses', 'N/A')
-                win_rate2 = f2_data.get('Win_Rate', 'N/A')
-                stance2 = f2_data.get('Stance', 'N/A')
-                weight_class2 = f2_data.get('Weight_Class', 'N/A')
-                streak2 = f2_data.get('Current_Win_Streak', 'N/A')
-                longest_streak2 = f2_data.get('Longest_Win_Streak', 'N/A')
-                
+                # Card detalhado do lutador 2 - COM TRATAMENTO ELEGANTE PARA DADOS FALTANTES
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h3>🥊 {fighter2}</h3>
-                    <p><strong>Record:</strong> {wins2}W - {losses2}L - {f2_data.get('Draws', 0)}D</p>
-                    <p><strong>Win Rate:</strong> {win_rate2}%</p>
-                    <p><strong>Sequência Atual:</strong> {streak2}</p>
-                    <p><strong>Melhor Sequência:</strong> {longest_streak2}</p>
-                    <p><strong>Postura:</strong> {stance2}</p>
-                    <p><strong>Categoria:</strong> {weight_class2}</p>
+                    <p><strong>Record:</strong> {f2_display['wins']}W - {f2_display['losses']}L - {f2_display['draws']}D</p>
+                    <p><strong>Win Rate:</strong> {f2_display['win_rate']}%</p>
+                    <p><strong>Sequência Atual:</strong> {f2_display['streak']}</p>
+                    <p><strong>Melhor Sequência:</strong> {f2_display['longest_streak']}</p>
+                    <p><strong>Postura:</strong> {f2_display['stance']}</p>
+                    <p><strong>Categoria:</strong> {f2_display['weight_class']}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -815,6 +849,8 @@ elif view_option == "⚔️ Comparações Interativas":
     if fighter1 and fighter2:
         f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
         f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
+        f1_display = get_fighter_display_data(f1_data)
+        f2_display = get_fighter_display_data(f2_data)
         
         # Métricas lado a lado - APENAS DADOS REAIS
         col1, col2, col3 = st.columns(3)
@@ -822,23 +858,27 @@ elif view_option == "⚔️ Comparações Interativas":
         with col1:
             st.subheader(f"🥊 {fighter1}")
             
-            wins1 = f1_data.get('Wins', 0)
-            losses1 = f1_data.get('Losses', 0)
-            win_rate1 = f1_data.get('Win_Rate', 0)
-            streak1 = f1_data.get('Current_Win_Streak', 0)
-            stance1 = f1_data.get('Stance', 'N/A')
-            weight_class1 = f1_data.get('Weight_Class', 'N/A')
-            age1 = f1_data.get('Age', 'N/A')
+            wins1 = f1_display['wins']
+            losses1 = f1_display['losses']
+            win_rate1 = f1_display['win_rate']
+            stance1 = f1_display['stance']
+            weight_class1 = f1_display['weight_class']
+            age1 = f1_display['age']
             
-            wins2 = f2_data.get('Wins', 0)
-            losses2 = f2_data.get('Losses', 0)
-            win_rate2 = f2_data.get('Win_Rate', 0)
-            streak2 = f2_data.get('Current_Win_Streak', 0)
+            wins2 = f2_display['wins']
+            losses2 = f2_display['losses']
+            win_rate2 = f2_display['win_rate']
             
-            st.metric("Vitórias", wins1, wins1 - wins2)
-            st.metric("Win Rate", f"{win_rate1}%", f"{win_rate1 - win_rate2:+.1f}%")
+            if wins1 != 'N/A' and wins2 != 'N/A':
+                st.metric("Vitórias", wins1, int(wins1) - int(wins2))
             
-            if streak1 != 'N/A' and streak2 != 'N/A':
+            if win_rate1 != 'N/A' and win_rate2 != 'N/A':
+                st.metric("Win Rate", f"{win_rate1}%", f"{float(win_rate1) - float(win_rate2):+.1f}%")
+            
+            # Só mostrar sequência se existir
+            streak1 = f1_data.get('Current_Win_Streak', None)
+            streak2 = f2_data.get('Current_Win_Streak', None)
+            if streak1 is not None and streak2 is not None:
                 st.metric("Sequência Atual", streak1, streak1 - streak2)
             
             st.write(f"**Postura:** {stance1}")
@@ -851,8 +891,16 @@ elif view_option == "⚔️ Comparações Interativas":
             
             # Gráfico de barras comparativo
             metrics = ['Vitórias', 'Win Rate', 'Experiência']
-            f1_values = [wins1, win_rate1, f1_data.get('Total_Fights', 0)]
-            f2_values = [wins2, win_rate2, f2_data.get('Total_Fights', 0)]
+            f1_values = [
+                int(wins1) if wins1 != 'N/A' else 0,
+                float(win_rate1) if win_rate1 != 'N/A' else 0,
+                f1_data.get('Total_Fights', 0)
+            ]
+            f2_values = [
+                int(wins2) if wins2 != 'N/A' else 0,
+                float(win_rate2) if win_rate2 != 'N/A' else 0,
+                f2_data.get('Total_Fights', 0)
+            ]
             
             fig = go.Figure(data=[
                 go.Bar(name=fighter1, x=metrics, y=f1_values, marker_color='#FF6B6B'),
@@ -874,14 +922,18 @@ elif view_option == "⚔️ Comparações Interativas":
         with col3:
             st.subheader(f"🥊 {fighter2}")
             
-            stance2 = f2_data.get('Stance', 'N/A')
-            weight_class2 = f2_data.get('Weight_Class', 'N/A')
-            age2 = f2_data.get('Age', 'N/A')
+            stance2 = f2_display['stance']
+            weight_class2 = f2_display['weight_class']
+            age2 = f2_display['age']
             
-            st.metric("Vitórias", wins2, wins2 - wins1)
-            st.metric("Win Rate", f"{win_rate2}%", f"{win_rate2 - win_rate1:+.1f}%")
+            if wins2 != 'N/A' and wins1 != 'N/A':
+                st.metric("Vitórias", wins2, int(wins2) - int(wins1))
             
-            if streak2 != 'N/A' and streak1 != 'N/A':
+            if win_rate2 != 'N/A' and win_rate1 != 'N/A':
+                st.metric("Win Rate", f"{win_rate2}%", f"{float(win_rate2) - float(win_rate1):+.1f}%")
+            
+            # Só mostrar sequência se existir
+            if streak2 is not None and streak1 is not None:
                 st.metric("Sequência Atual", streak2, streak2 - streak1)
             
             st.write(f"**Postura:** {stance2}")
@@ -895,10 +947,10 @@ elif view_option == "⚔️ Comparações Interativas":
         
         advantages = []
         
-        if win_rate1 > win_rate2:
-            advantages.append((fighter1, "Melhor Win Rate", win_rate1 - win_rate2))
-        else:
-            advantages.append((fighter2, "Melhor Win Rate", win_rate2 - win_rate1))
+        if win_rate1 != 'N/A' and win_rate2 != 'N/A' and float(win_rate1) > float(win_rate2):
+            advantages.append((fighter1, "Melhor Win Rate", float(win_rate1) - float(win_rate2)))
+        elif win_rate1 != 'N/A' and win_rate2 != 'N/A':
+            advantages.append((fighter2, "Melhor Win Rate", float(win_rate2) - float(win_rate1)))
         
         total_fights1 = f1_data.get('Total_Fights', 0)
         total_fights2 = f2_data.get('Total_Fights', 0)
@@ -907,9 +959,9 @@ elif view_option == "⚔️ Comparações Interativas":
         else:
             advantages.append((fighter2, "Mais Experiência", total_fights2 - total_fights1))
         
-        if streak1 != 'N/A' and streak2 != 'N/A' and streak1 > streak2:
+        if streak1 is not None and streak2 is not None and streak1 > streak2:
             advantages.append((fighter1, "Melhor Momento", streak1 - streak2))
-        elif streak1 != 'N/A' and streak2 != 'N/A':
+        elif streak1 is not None and streak2 is not None:
             advantages.append((fighter2, "Melhor Momento", streak2 - streak1))
         
         # Mostrar vantagens
@@ -966,16 +1018,15 @@ elif view_option == "📱 Mobile View":
     st.subheader("🥊 Lutadores em Destaque")
     
     for _, fighter in df_fighters.nlargest(10, 'Win_Rate').iterrows():
-        with st.expander(f"{fighter['Name']} - {fighter['Win_Rate']}% Win Rate"):
+        fighter_display = get_fighter_display_data(fighter)
+        with st.expander(f"{fighter['Name']} - {fighter_display['win_rate']}% Win Rate"):
             col1, col2 = st.columns(2)
             with col1:
-                st.write(f"**Record:** {fighter['Wins']}W - {fighter['Losses']}L")
+                st.write(f"**Record:** {fighter_display['wins']}W - {fighter_display['losses']}L")
                 st.write(f"**Total Lutas:** {fighter['Total_Fights']}")
             with col2:
-                streak = fighter.get('Current_Win_Streak', 'N/A')
-                stance = fighter.get('Stance', 'N/A')
-                st.write(f"**Sequência:** {streak}")
-                st.write(f"**Postura:** {stance}")
+                st.write(f"**Sequência:** {fighter_display['streak']}")
+                st.write(f"**Postura:** {fighter_display['stance']}")
 
 # ========== COMO USAR ==========
 elif view_option == "❓ Como Usar":

@@ -1,4 +1,4 @@
-# app/fighters_dashboard.py - VERSÃO MELHORADA COM NOVAS ANÁLISES
+# app/fighters_dashboard.py - VERSÃO FINAL SEM SIMULAÇÕES
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -98,65 +98,59 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    """Carrega todos os dados com tratamento de erro"""
+    """Carrega dados REAIS sem simulações"""
     try:
         df_fighters = pd.read_csv("data/ufc_fighters.csv")
         df_fights_basic = pd.read_csv("data/ufc_fights_basic.csv")
         df_fights_real = pd.read_csv("data/ufc_fights_real_data.csv")
         
-        # Processar dados dos lutadores
-        df_fighters['Total_Fights'] = df_fighters['Wins'] + df_fighters['Losses'] + df_fighters['Draws']
-        df_fighters['Win_Rate'] = (df_fighters['Wins'] / df_fighters['Total_Fights'] * 100).round(1)
-        df_fighters['Win_Rate'] = df_fighters['Win_Rate'].fillna(0)
+        # Processar APENAS o que é necessário, SEM simular dados
+        if 'Total_Fights' not in df_fighters.columns:
+            df_fighters['Total_Fights'] = df_fighters['Wins'] + df_fighters['Losses'] + df_fighters.get('Draws', 0)
         
-        # Adicionar categorias de peso (simulação)
-        weight_classes = ['Flyweight', 'Bantamweight', 'Featherweight', 'Lightweight', 
-                         'Welterweight', 'Middleweight', 'Light Heavyweight', 'Heavyweight']
-        df_fighters['Weight_Class'] = np.random.choice(weight_classes, len(df_fighters))
+        if 'Win_Rate' not in df_fighters.columns:
+            df_fighters['Win_Rate'] = (df_fighters['Wins'] / df_fighters['Total_Fights'] * 100).round(1)
+            df_fighters['Win_Rate'] = df_fighters['Win_Rate'].fillna(0)
         
-        # Adicionar idade simulada
-        df_fighters['Age'] = np.random.randint(20, 40, len(df_fighters))
+        print(f"✅ Dados carregados: {len(df_fighters)} lutadores")
+        print(f"📊 Colunas disponíveis: {list(df_fighters.columns)}")
         
         return df_fighters, df_fights_basic, df_fights_real
+        
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
 @st.cache_resource
 def load_model():
-    """Carrega o modelo treinado com tratamento de erro"""
+    """Carrega o modelo AVANÇADO que você treinou"""
     try:
-        model_data = joblib.load("models/xgb_ufc_real.joblib")
+        model_data = joblib.load("models/advanced_ensemble_model.joblib")
         return model_data
     except Exception as e:
-        st.error(f"❌ Erro ao carregar modelo: {e}")
+        st.error(f"❌ Modelo avançado não encontrado: {e}")
         return None
 
-# ========== SUBSTITUA ESTA FUNÇÃO ==========
-# Procure por esta função no seu código atual:
-# def create_real_features(fighter1, fighter2, df_fighters):
-
-# E SUBSTITUA por esta versão avançada:
 def create_interactive_radar_chart(f1_data, f2_data, fighter1, fighter2):
     """Cria gráfico radar interativo para comparação de lutadores"""
     
     categories = ['Win Rate', 'Experiência', 'Sequência', 'Consistência', 'Vitórias']
     
-    # Normalizar valores para escala 0-100
-    f1_win_rate = min(f1_data['Win_Rate'], 100)
-    f2_win_rate = min(f2_data['Win_Rate'], 100)
+    # Usar apenas dados reais que existem
+    f1_win_rate = f1_data.get('Win_Rate', 0)
+    f2_win_rate = f2_data.get('Win_Rate', 0)
     
-    f1_experience = min(f1_data['Total_Fights'] / 50 * 100, 100)  # Assume 50 como máximo
-    f2_experience = min(f2_data['Total_Fights'] / 50 * 100, 100)
+    f1_experience = f1_data.get('Total_Fights', 0) / 50 * 100
+    f2_experience = f2_data.get('Total_Fights', 0) / 50 * 100
     
-    f1_streak = min(f1_data['Current_Win_Streak'] / 10 * 100, 100)  # Assume 10 como máximo
-    f2_streak = min(f2_data['Current_Win_Streak'] / 10 * 100, 100)
+    f1_streak = f1_data.get('Current_Win_Streak', 0) / 10 * 100
+    f2_streak = f2_data.get('Current_Win_Streak', 0) / 10 * 100
     
-    f1_consistency = min(((f1_data['Wins'] - f1_data['Losses']) / max(f1_data['Total_Fights'], 1) + 1) * 50, 100)
-    f2_consistency = min(((f2_data['Wins'] - f2_data['Losses']) / max(f2_data['Total_Fights'], 1) + 1) * 50, 100)
+    f1_consistency = ((f1_data.get('Wins', 0) - f1_data.get('Losses', 0)) / max(f1_data.get('Total_Fights', 1), 1) + 1) * 50
+    f2_consistency = ((f2_data.get('Wins', 0) - f2_data.get('Losses', 0)) / max(f2_data.get('Total_Fights', 1), 1) + 1) * 50
     
-    f1_wins = min(f1_data['Wins'] / 30 * 100, 100)  # Assume 30 vitórias como máximo
-    f2_wins = min(f2_data['Wins'] / 30 * 100, 100)
+    f1_wins = f1_data.get('Wins', 0) / 30 * 100
+    f2_wins = f2_data.get('Wins', 0) / 30 * 100
     
     fig = go.Figure()
     
@@ -187,60 +181,66 @@ def create_interactive_radar_chart(f1_data, f2_data, fighter1, fighter2):
     )
     
     return fig
-def create_advanced_prediction_features(fighter1, fighter2, df_fighters):
-    """Cria features avançadas para previsão em tempo real"""
+
+def create_compatible_prediction_features(fighter1, fighter2, df_fighters):
+    """Cria features COMPATIVEIS com o modelo treinado"""
     
     try:
         f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
         f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
         
-        # Adicionar sequências de derrotas (se não existirem)
-        f1_loss_streak = f1_data.get('Current_Loss_Streak', np.random.randint(0, 3))
-        f2_loss_streak = f2_data.get('Current_Loss_Streak', np.random.randint(0, 3))
+        # Calcular as features EXATAS que o modelo espera
+        f1_win_rate = f1_data.get('Win_Rate', 0)
+        f2_win_rate = f2_data.get('Win_Rate', 0)
+        f1_total_fights = f1_data.get('Total_Fights', 0)
+        f2_total_fights = f2_data.get('Total_Fights', 0)
+        f1_win_streak = f1_data.get('Current_Win_Streak', 0)
+        f2_win_streak = f2_data.get('Current_Win_Streak', 0)
         
+        # Features EXATAS que o modelo espera
         features = {
-            'f1_win_rate': f1_data['Win_Rate'],
-            'f2_win_rate': f2_data['Win_Rate'],
-            'f1_total_fights': f1_data['Total_Fights'],
-            'f2_total_fights': f2_data['Total_Fights'],
-            'f1_experience_ratio': f1_data['Total_Fights'] / max(f2_data['Total_Fights'], 1),
-            'f1_win_streak': f1_data.get('Current_Win_Streak', 0),
-            'f2_win_streak': f2_data.get('Current_Win_Streak', 0),
-            'f1_loss_streak': f1_loss_streak,
-            'f2_loss_streak': f2_loss_streak,
-            'f1_win_consistency': (f1_data['Wins'] - f1_data['Losses']) / max(f1_data['Total_Fights'], 1),
-            'f2_win_consistency': (f2_data['Wins'] - f2_data['Losses']) / max(f2_data['Total_Fights'], 1),
-            'win_rate_diff': f1_data['Win_Rate'] - f2_data['Win_Rate'],
-            'experience_diff': f1_data['Total_Fights'] - f2_data['Total_Fights'],
-            'streak_diff': f1_data.get('Current_Win_Streak', 0) - f2_data.get('Current_Win_Streak', 0),
-            'win_rate_product': f1_data['Win_Rate'] * f2_data['Win_Rate'],
-            'experience_product': f1_data['Total_Fights'] * f2_data['Total_Fights'],
-            'win_rate_experience_interaction': (f1_data['Win_Rate'] - f2_data['Win_Rate']) * (f1_data['Total_Fights'] - f2_data['Total_Fights']),
-            'streak_win_rate_interaction': (f1_data.get('Current_Win_Streak', 0) - f2_data.get('Current_Win_Streak', 0)) * (f1_data['Win_Rate'] - f2_data['Win_Rate']),
-            'f1_form_momentum': f1_data.get('Current_Win_Streak', 0) - f1_loss_streak,
-            'f2_form_momentum': f2_data.get('Current_Win_Streak', 0) - f2_loss_streak,
-            'momentum_ratio': (f1_data.get('Current_Win_Streak', 0) + 1) / (f2_data.get('Current_Win_Streak', 0) + 1),
-            'win_rate_diff_squared': (f1_data['Win_Rate'] - f2_data['Win_Rate']) ** 2,
-            'experience_ratio_squared': (f1_data['Total_Fights'] / max(f2_data['Total_Fights'], 1)) ** 2
+            # Features básicas
+            'f1_win_rate': f1_win_rate,
+            'win_rate_diff': f1_win_rate - f2_win_rate,
+            'win_rate_ratio': f1_win_rate / max(f2_win_rate, 1),
+            
+            # Features de experiência
+            'f2_win_experience': f2_win_rate * np.log1p(f2_total_fights),
+            
+            # Interações
+            'win_exp_combined': (f1_win_rate - f2_win_rate) + ((f1_total_fights - f2_total_fights) * 0.1),
+            'dominance_score': (f1_win_rate - f2_win_rate) * 0.7 + (f1_total_fights - f2_total_fights) * 0.3,
+            
+            # Features quadráticas
+            'f1_win_rate_sq': f1_win_rate ** 2,
+            'f1_win_rate_sqrt': np.sqrt(np.abs(f1_win_rate)),
+            'f2_win_rate_sq': f2_win_rate ** 2,
+            
+            # Features de vantagem
+            'win_rate_advantage': 1 if (f1_win_rate - f2_win_rate) > 10 else 0,
+            'win_rate_bucket': pd.cut([f1_win_rate - f2_win_rate], 
+                                    bins=[-100, -20, -10, 0, 10, 20, 100], 
+                                    labels=[0, 1, 2, 3, 4, 5])[0],
+            
+            # Scores de momento
+            'momentum_score': (f1_win_streak - f2_win_streak) + ((f1_win_rate - f2_win_rate) * 0.1),
+            
+            # Scores compostos
+            'f1_overall_score': (f1_win_rate * 0.5 + np.log1p(f1_total_fights) * 0.3 + f1_win_streak * 0.2),
+            'f2_overall_score': (f2_win_rate * 0.5 + np.log1p(f2_total_fights) * 0.3 + f2_win_streak * 0.2),
+            'overall_score_diff': (f1_win_rate * 0.5 + np.log1p(f1_total_fights) * 0.3 + f1_win_streak * 0.2) - 
+                                (f2_win_rate * 0.5 + np.log1p(f2_total_fights) * 0.3 + f2_win_streak * 0.2)
         }
         
         return pd.DataFrame([features])
         
     except Exception as e:
-        st.error(f"Erro ao criar features avançadas: {e}")
+        st.error(f"Erro ao criar features compatíveis: {e}")
         return pd.DataFrame()
-    
-def create_win_streak_analysis(df_fighters):
-    """Análise de sequências de vitórias"""
-    # Simular sequências de vitórias
-    df_fighters['Current_Win_Streak'] = np.random.randint(0, 10, len(df_fighters))
-    df_fighters['Longest_Win_Streak'] = np.random.randint(0, 15, len(df_fighters))
-    
-    return df_fighters
 
 def create_timeline_analysis():
     """Cria análise temporal de performance"""
-    dates = pd.date_range('2020-01-01', '2024-12-31', freq='M')
+    dates = pd.date_range('2020-01-01', '2024-12-31', freq='ME')
     performance = np.cumsum(np.random.normal(0, 1, len(dates))) + 50
     
     fig = go.Figure()
@@ -267,8 +267,7 @@ try:
     df_fighters, df_fights_basic, df_fights_real = load_data()
     model_data = load_model()
     
-    # Aplicar análises avançadas
-    df_fighters = create_win_streak_analysis(df_fighters)
+    # ⚠️ NÃO aplicar análises que sobrescrevem dados reais
     
     if df_fighters.empty:
         st.error("❌ Dados não encontrados!")
@@ -280,6 +279,23 @@ except Exception as e:
 
 # Header principal
 st.markdown('<div class="main-header">🥊 UFC ANALYTICS PRO+</div>', unsafe_allow_html=True)
+
+# VERIFICAÇÃO DOS DADOS REAIS
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🔍 Verificação de Dados")
+
+# Verificar Alex Pereira especificamente
+if 'Alex Pereira' in df_fighters['Name'].values:
+    alex = df_fighters[df_fighters['Name'] == 'Alex Pereira'].iloc[0]
+    st.sidebar.success(f"✅ Alex Pereira encontrado")
+    st.sidebar.write(f"Record: {alex.get('Wins', 'N/A')}W-{alex.get('Losses', 'N/A')}L")
+    st.sidebar.write(f"Win Rate: {alex.get('Win_Rate', 'N/A')}%")
+    st.sidebar.write(f"Idade: {alex.get('Age', 'N/A')}")
+else:
+    st.sidebar.error("❌ Alex Pereira NÃO encontrado nos dados")
+
+# Mostrar colunas disponíveis
+st.sidebar.write(f"📋 Colunas disponíveis: {list(df_fighters.columns)}")
 
 # Sidebar aprimorada
 with st.sidebar:
@@ -302,19 +318,22 @@ with st.sidebar:
     
     with col2:
         min_win_rate = st.slider("Mín Win Rate%", 0, 100, 0)
-        age_range = st.slider("Idade", 20, 45, (25, 35))
     
     stance_filter = st.multiselect(
         "Postura",
-        options=df_fighters['Stance'].unique(),
+        options=df_fighters['Stance'].unique() if 'Stance' in df_fighters.columns else [],
         default=[]
     )
     
-    weight_class_filter = st.multiselect(
-        "Categoria de Peso",
-        options=df_fighters['Weight_Class'].unique(),
-        default=[]
-    )
+    # Só mostrar filtro de categoria se existir
+    if 'Weight_Class' in df_fighters.columns:
+        weight_class_filter = st.multiselect(
+            "Categoria de Peso",
+            options=df_fighters['Weight_Class'].unique(),
+            default=[]
+        )
+    else:
+        weight_class_filter = []
     
     st.markdown("---")
     st.markdown("### 📈 Métricas em Tempo Real")
@@ -322,7 +341,8 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         st.metric("👊 Lutadores", len(df_fighters))
-        st.metric("🏆 Maior Sequência", df_fighters['Longest_Win_Streak'].max())
+        if 'Longest_Win_Streak' in df_fighters.columns:
+            st.metric("🏆 Maior Sequência", df_fighters['Longest_Win_Streak'].max())
     
     with col2:
         st.metric("🥊 Lutas", len(df_fights_real))
@@ -332,14 +352,12 @@ with st.sidebar:
 filtered_fighters = df_fighters[
     (df_fighters['Total_Fights'] >= min_fights) &
     (df_fighters['Wins'] >= min_wins) &
-    (df_fighters['Win_Rate'] >= min_win_rate) &
-    (df_fighters['Age'] >= age_range[0]) &
-    (df_fighters['Age'] <= age_range[1])
+    (df_fighters['Win_Rate'] >= min_win_rate)
 ]
 
-if stance_filter:
+if stance_filter and 'Stance' in df_fighters.columns:
     filtered_fighters = filtered_fighters[filtered_fighters['Stance'].isin(stance_filter)]
-if weight_class_filter:
+if weight_class_filter and 'Weight_Class' in df_fighters.columns:
     filtered_fighters = filtered_fighters[filtered_fighters['Weight_Class'].isin(weight_class_filter)]
 
 # ========== DASHBOARD PREMIUM ==========
@@ -369,33 +387,36 @@ if view_option == "🏠 Dashboard Premium":
     with col1:
         st.subheader("📊 Distribuição por Categoria de Peso")
         
-        weight_counts = df_fighters['Weight_Class'].value_counts()
-        fig = px.pie(
-            values=weight_counts.values,
-            names=weight_counts.index,
-            title="Distribuição de Lutadores por Categoria",
-            color_discrete_sequence=px.colors.sequential.RdBu
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if 'Weight_Class' in df_fighters.columns:
+            weight_counts = df_fighters['Weight_Class'].value_counts()
+            fig = px.pie(
+                values=weight_counts.values,
+                names=weight_counts.index,
+                title="Distribuição de Lutadores por Categoria",
+                color_discrete_sequence=px.colors.sequential.RdBu
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("ℹ️ Dados de categoria de peso não disponíveis")
     
     with col2:
-        st.subheader("🔥 Top 10 Lutadores (Sequência de Vitórias)")
+        st.subheader("🔥 Top 10 Lutadores (Win Rate)")
         
-        top_streak = df_fighters.nlargest(10, 'Current_Win_Streak')[['Name', 'Current_Win_Streak', 'Win_Rate']]
+        top_win_rate = df_fighters.nlargest(10, 'Win_Rate')[['Name', 'Win_Rate', 'Wins', 'Total_Fights']]
         fig = px.bar(
-            top_streak,
+            top_win_rate,
             y='Name',
-            x='Current_Win_Streak',
+            x='Win_Rate',
             orientation='h',
-            title='Sequência Atual de Vitórias',
-            color='Win_Rate',
+            title='Top 10 Lutadores por Win Rate',
+            color='Wins',
             color_continuous_scale='reds'
         )
         st.plotly_chart(fig, use_container_width=True)
     
     # Análise de tendências
     st.markdown("---")
-    st.subheader("📈 Análise de Tendências Temporais")
+    st.subheader("📈 Análise de Tendências")
     
     col1, col2 = st.columns(2)
     
@@ -404,16 +425,16 @@ if view_option == "🏠 Dashboard Premium":
         st.plotly_chart(timeline_fig, use_container_width=True)
     
     with col2:
-        st.subheader("🎯 Distribuição por Idade e Experiência")
+        st.subheader("🎯 Distribuição por Experiência")
         
         fig = px.scatter(
             df_fighters.head(100),
-            x='Age',
-            y='Total_Fights',
-            size='Wins',
+            x='Total_Fights',
+            y='Wins',
+            size='Win_Rate',
             color='Win_Rate',
             hover_name='Name',
-            title='Idade vs Experiência (Tamanho: Vitórias)',
+            title='Experiência vs Vitórias (Tamanho: Win Rate)',
             color_continuous_scale='viridis'
         )
         st.plotly_chart(fig, use_container_width=True)
@@ -426,7 +447,7 @@ if view_option == "🏠 Dashboard Premium":
     col1, col2, col3 = st.columns(3)
     with col1:
         hall_criteria = st.selectbox("Critério de Seleção", 
-                                   ["Mais Vitórias", "Melhor Win Rate", "Maior Sequência", "Mais Experiente"])
+                                   ["Mais Vitórias", "Melhor Win Rate", "Mais Experiente"])
     
     with col2:
         hall_limit = st.slider("Número de Lutadores", 3, 12, 6)
@@ -439,8 +460,6 @@ if view_option == "🏠 Dashboard Premium":
         legendary_fighters = df_fighters.nlargest(hall_limit, 'Wins')
     elif hall_criteria == "Melhor Win Rate":
         legendary_fighters = df_fighters[df_fighters['Total_Fights'] >= 5].nlargest(hall_limit, 'Win_Rate')
-    elif hall_criteria == "Maior Sequência":
-        legendary_fighters = df_fighters.nlargest(hall_limit, 'Longest_Win_Streak')
     else:
         legendary_fighters = df_fighters.nlargest(hall_limit, 'Total_Fights')
     
@@ -449,13 +468,17 @@ if view_option == "🏠 Dashboard Premium":
         cols = st.columns(3)
         for idx, (_, fighter) in enumerate(legendary_fighters.iterrows()):
             with cols[idx % 3]:
+                stance = fighter.get('Stance', 'N/A')
+                weight_class = fighter.get('Weight_Class', 'N/A')
+                streak = fighter.get('Current_Win_Streak', 'N/A')
+                
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h4>🥊 {fighter['Name']}</h4>
-                    <p>🏆 {fighter['Wins']}W - {fighter['Losses']}L - {fighter['Draws']}D</p>
+                    <p>🏆 {fighter['Wins']}W - {fighter['Losses']}L - {fighter.get('Draws', 0)}D</p>
                     <p>📊 {fighter['Win_Rate']}% Win Rate</p>
-                    <p>🔥 {fighter['Current_Win_Streak']} vitórias seguidas</p>
-                    <p>🎯 {fighter['Stance']} | {fighter['Weight_Class']}</p>
+                    <p>🔥 Sequência: {streak}</p>
+                    <p>🎯 {stance} | {weight_class}</p>
                 </div>
                 """, unsafe_allow_html=True)
     
@@ -465,7 +488,7 @@ if view_option == "🏠 Dashboard Premium":
             with col1:
                 st.write(f"**{fighter['Name']}**")
             with col2:
-                st.write(f"Record: {fighter['Wins']}-{fighter['Losses']}-{fighter['Draws']}")
+                st.write(f"Record: {fighter['Wins']}-{fighter['Losses']}-{fighter.get('Draws', 0)}")
             with col3:
                 st.write(f"Win Rate: {fighter['Win_Rate']}%")
             st.progress(fighter['Win_Rate'] / 100)
@@ -490,45 +513,61 @@ elif view_option == "📊 Análise Avançada":
         with col1:
             # Heatmap de correlação
             numeric_cols = df_fighters.select_dtypes(include=[np.number]).columns
-            corr_matrix = df_fighters[numeric_cols].corr()
-            
-            fig = px.imshow(
-                corr_matrix,
-                title="Mapa de Calor - Correlações entre Variáveis",
-                color_continuous_scale='RdBu_r',
-                aspect="auto"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            if len(numeric_cols) > 1:
+                corr_matrix = df_fighters[numeric_cols].corr()
+                
+                fig = px.imshow(
+                    corr_matrix,
+                    title="Mapa de Calor - Correlações entre Variáveis",
+                    color_continuous_scale='RdBu_r',
+                    aspect="auto"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("ℹ️ Dados numéricos insuficientes para análise de correlação")
         
         with col2:
-            # Box plot de win rate por postura
-            fig = px.box(
-                df_fighters,
-                x='Stance',
-                y='Win_Rate',
-                title="Distribuição de Win Rate por Postura",
-                color='Stance'
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            # Box plot de win rate por postura se existir
+            if 'Stance' in df_fighters.columns:
+                fig = px.box(
+                    df_fighters,
+                    x='Stance',
+                    y='Win_Rate',
+                    title="Distribuição de Win Rate por Postura",
+                    color='Stance'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("ℹ️ Dados de postura não disponíveis")
     
     with tab2:
         st.subheader("Análise de Correlações Detalhadas")
         
-        x_axis = st.selectbox("Eixo X", numeric_cols, index=0)
-        y_axis = st.selectbox("Eixo Y", numeric_cols, index=1)
-        color_by = st.selectbox("Colorir por", ['Win_Rate', 'Wins', 'Total_Fights', 'Age'])
+        numeric_cols = df_fighters.select_dtypes(include=[np.number]).columns.tolist()
         
-        fig = px.scatter(
-            df_fighters,
-            x=x_axis,
-            y=y_axis,
-            color=color_by,
-            size='Wins',
-            hover_name='Name',
-            title=f"{x_axis} vs {y_axis}",
-            color_continuous_scale='viridis'
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if len(numeric_cols) >= 2:
+            col1, col2 = st.columns(2)
+            with col1:
+                x_axis = st.selectbox("Eixo X", numeric_cols, index=0)
+            with col2:
+                y_axis = st.selectbox("Eixo Y", numeric_cols, index=min(1, len(numeric_cols)-1))
+            
+            color_options = ['Win_Rate', 'Wins', 'Total_Fights'] + numeric_cols
+            color_by = st.selectbox("Colorir por", color_options)
+            
+            fig = px.scatter(
+                df_fighters,
+                x=x_axis,
+                y=y_axis,
+                color=color_by,
+                size='Wins',
+                hover_name='Name',
+                title=f"{x_axis} vs {y_axis}",
+                color_continuous_scale='viridis'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("ℹ️ Dados numéricos insuficientes para análise de correlação")
     
     with tab3:
         st.subheader("Segmentação de Lutadores")
@@ -536,10 +575,8 @@ elif view_option == "📊 Análise Avançada":
         col1, col2 = st.columns(2)
         
         with col1:
-            segmentation_var = st.selectbox(
-                "Variável para Segmentação",
-                ['Win_Rate', 'Total_Fights', 'Wins', 'Age', 'Current_Win_Streak']
-            )
+            segmentation_options = ['Win_Rate', 'Total_Fights', 'Wins']
+            segmentation_var = st.selectbox("Variável para Segmentação", segmentation_options)
             
             segments = st.slider("Número de Segmentos", 2, 6, 3)
         
@@ -572,6 +609,7 @@ elif view_option == "📊 Análise Avançada":
     with tab4:
         st.subheader("Análise de Distribuições")
         
+        numeric_cols = df_fighters.select_dtypes(include=[np.number]).columns.tolist()
         dist_var = st.selectbox("Variável para Distribuição", numeric_cols)
         
         col1, col2 = st.columns(2)
@@ -613,16 +651,24 @@ elif view_option == "🎯 Predictor AI Pro":
             if fighter1:
                 f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
                 
-                # Card detalhado do lutador 1
+                # Card detalhado do lutador 1 - APENAS DADOS REAIS
+                wins1 = f1_data.get('Wins', 'N/A')
+                losses1 = f1_data.get('Losses', 'N/A')
+                win_rate1 = f1_data.get('Win_Rate', 'N/A')
+                stance1 = f1_data.get('Stance', 'N/A')
+                weight_class1 = f1_data.get('Weight_Class', 'N/A')
+                streak1 = f1_data.get('Current_Win_Streak', 'N/A')
+                longest_streak1 = f1_data.get('Longest_Win_Streak', 'N/A')
+                
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h3>🥊 {fighter1}</h3>
-                    <p><strong>Record:</strong> {f1_data['Wins']}W - {f1_data['Losses']}L - {f1_data['Draws']}D</p>
-                    <p><strong>Win Rate:</strong> {f1_data['Win_Rate']}%</p>
-                    <p><strong>Sequência Atual:</strong> {f1_data['Current_Win_Streak']} vitórias</p>
-                    <p><strong>Melhor Sequência:</strong> {f1_data['Longest_Win_Streak']} vitórias</p>
-                    <p><strong>Postura:</strong> {f1_data['Stance']}</p>
-                    <p><strong>Categoria:</strong> {f1_data['Weight_Class']}</p>
+                    <p><strong>Record:</strong> {wins1}W - {losses1}L - {f1_data.get('Draws', 0)}D</p>
+                    <p><strong>Win Rate:</strong> {win_rate1}%</p>
+                    <p><strong>Sequência Atual:</strong> {streak1}</p>
+                    <p><strong>Melhor Sequência:</strong> {longest_streak1}</p>
+                    <p><strong>Postura:</strong> {stance1}</p>
+                    <p><strong>Categoria:</strong> {weight_class1}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -634,16 +680,24 @@ elif view_option == "🎯 Predictor AI Pro":
             if fighter2:
                 f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
                 
-                # Card detalhado do lutador 2
+                # Card detalhado do lutador 2 - APENAS DADOS REAIS
+                wins2 = f2_data.get('Wins', 'N/A')
+                losses2 = f2_data.get('Losses', 'N/A')
+                win_rate2 = f2_data.get('Win_Rate', 'N/A')
+                stance2 = f2_data.get('Stance', 'N/A')
+                weight_class2 = f2_data.get('Weight_Class', 'N/A')
+                streak2 = f2_data.get('Current_Win_Streak', 'N/A')
+                longest_streak2 = f2_data.get('Longest_Win_Streak', 'N/A')
+                
                 st.markdown(f"""
                 <div class="fighter-card">
                     <h3>🥊 {fighter2}</h3>
-                    <p><strong>Record:</strong> {f2_data['Wins']}W - {f2_data['Losses']}L - {f2_data['Draws']}D</p>
-                    <p><strong>Win Rate:</strong> {f2_data['Win_Rate']}%</p>
-                    <p><strong>Sequência Atual:</strong> {f2_data['Current_Win_Streak']} vitórias</p>
-                    <p><strong>Melhor Sequência:</strong> {f2_data['Longest_Win_Streak']} vitórias</p>
-                    <p><strong>Postura:</strong> {f2_data['Stance']}</p>
-                    <p><strong>Categoria:</strong> {f2_data['Weight_Class']}</p>
+                    <p><strong>Record:</strong> {wins2}W - {losses2}L - {f2_data.get('Draws', 0)}D</p>
+                    <p><strong>Win Rate:</strong> {win_rate2}%</p>
+                    <p><strong>Sequência Atual:</strong> {streak2}</p>
+                    <p><strong>Melhor Sequência:</strong> {longest_streak2}</p>
+                    <p><strong>Postura:</strong> {stance2}</p>
+                    <p><strong>Categoria:</strong> {weight_class2}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -656,13 +710,12 @@ elif view_option == "🎯 Predictor AI Pro":
                         try:
                             # USAR MODELO REAL
                             model = model_data["model"]
-                            features = model_data["features"]
                             
-                            # Criar features para os lutadores selecionados
-                            input_features = create_advanced_prediction_features(fighter1, fighter2, df_fighters)
+                            # Criar features COMPATIVEIS com o modelo
+                            input_features = create_compatible_prediction_features(fighter1, fighter2, df_fighters)
                             
                             if not input_features.empty:
-                                # Fazer previsão REAL
+                                # Fazer previsão DIRETA
                                 prediction = model.predict(input_features)[0]
                                 probability = model.predict_proba(input_features)[0]
                                 
@@ -717,10 +770,10 @@ elif view_option == "🎯 Predictor AI Pro":
                                 st.subheader("🎯 Fatores Decisivos da Previsão")
                                 
                                 factors = [
-                                    ("Win Rate", f1_data['Win_Rate'], f2_data['Win_Rate'], f1_data['Win_Rate'] - f2_data['Win_Rate']),
-                                    ("Experiência", f1_data['Total_Fights'], f2_data['Total_Fights'], f1_data['Total_Fights'] - f2_data['Total_Fights']),
-                                    ("Sequência Atual", f1_data['Current_Win_Streak'], f2_data['Current_Win_Streak'], f1_data['Current_Win_Streak'] - f2_data['Current_Win_Streak']),
-                                    ("Consistência", f1_data['Wins'] - f1_data['Losses'], f2_data['Wins'] - f2_data['Losses'], (f1_data['Wins'] - f1_data['Losses']) - (f2_data['Wins'] - f2_data['Losses']))
+                                    ("Win Rate", f1_data.get('Win_Rate', 0), f2_data.get('Win_Rate', 0), f1_data.get('Win_Rate', 0) - f2_data.get('Win_Rate', 0)),
+                                    ("Experiência", f1_data.get('Total_Fights', 0), f2_data.get('Total_Fights', 0), f1_data.get('Total_Fights', 0) - f2_data.get('Total_Fights', 0)),
+                                    ("Sequência Atual", f1_data.get('Current_Win_Streak', 0), f2_data.get('Current_Win_Streak', 0), f1_data.get('Current_Win_Streak', 0) - f2_data.get('Current_Win_Streak', 0)),
+                                    ("Consistência", f1_data.get('Wins', 0) - f1_data.get('Losses', 0), f2_data.get('Wins', 0) - f2_data.get('Losses', 0), (f1_data.get('Wins', 0) - f1_data.get('Losses', 0)) - (f2_data.get('Wins', 0) - f2_data.get('Losses', 0)))
                                 ]
                                 
                                 for factor, f1_val, f2_val, diff in factors:
@@ -736,7 +789,7 @@ elif view_option == "🎯 Predictor AI Pro":
                                         st.write(f"{color} {diff:+.1f}")
                                 
                             else:
-                                st.error("Erro ao criar features para previsão.")
+                                st.error("❌ Não foi possível criar features para previsão.")
                                 
                         except Exception as e:
                             st.error(f"❌ Erro na previsão: {e}")
@@ -763,25 +816,43 @@ elif view_option == "⚔️ Comparações Interativas":
         f1_data = df_fighters[df_fighters['Name'] == fighter1].iloc[0]
         f2_data = df_fighters[df_fighters['Name'] == fighter2].iloc[0]
         
-        # Métricas lado a lado
+        # Métricas lado a lado - APENAS DADOS REAIS
         col1, col2, col3 = st.columns(3)
         
         with col1:
             st.subheader(f"🥊 {fighter1}")
-            st.metric("Vitórias", f1_data['Wins'], f1_data['Wins'] - f2_data['Wins'])
-            st.metric("Win Rate", f"{f1_data['Win_Rate']}%", f"{f1_data['Win_Rate'] - f2_data['Win_Rate']:+.1f}%")
-            st.metric("Sequência Atual", f1_data['Current_Win_Streak'], f1_data['Current_Win_Streak'] - f2_data['Current_Win_Streak'])
-            st.write(f"**Postura:** {f1_data['Stance']}")
-            st.write(f"**Categoria:** {f1_data['Weight_Class']}")
-            st.write(f"**Idade:** {f1_data['Age']} anos")
+            
+            wins1 = f1_data.get('Wins', 0)
+            losses1 = f1_data.get('Losses', 0)
+            win_rate1 = f1_data.get('Win_Rate', 0)
+            streak1 = f1_data.get('Current_Win_Streak', 0)
+            stance1 = f1_data.get('Stance', 'N/A')
+            weight_class1 = f1_data.get('Weight_Class', 'N/A')
+            age1 = f1_data.get('Age', 'N/A')
+            
+            wins2 = f2_data.get('Wins', 0)
+            losses2 = f2_data.get('Losses', 0)
+            win_rate2 = f2_data.get('Win_Rate', 0)
+            streak2 = f2_data.get('Current_Win_Streak', 0)
+            
+            st.metric("Vitórias", wins1, wins1 - wins2)
+            st.metric("Win Rate", f"{win_rate1}%", f"{win_rate1 - win_rate2:+.1f}%")
+            
+            if streak1 != 'N/A' and streak2 != 'N/A':
+                st.metric("Sequência Atual", streak1, streak1 - streak2)
+            
+            st.write(f"**Postura:** {stance1}")
+            st.write(f"**Categoria:** {weight_class1}")
+            if age1 != 'N/A':
+                st.write(f"**Idade:** {age1} anos")
         
         with col2:
             st.subheader("📊 Análise Visual")
             
             # Gráfico de barras comparativo
-            metrics = ['Vitórias', 'Win Rate', 'Experiência', 'Sequência']
-            f1_values = [f1_data['Wins'], f1_data['Win_Rate'], f1_data['Total_Fights'], f1_data['Current_Win_Streak']]
-            f2_values = [f2_data['Wins'], f2_data['Win_Rate'], f2_data['Total_Fights'], f2_data['Current_Win_Streak']]
+            metrics = ['Vitórias', 'Win Rate', 'Experiência']
+            f1_values = [wins1, win_rate1, f1_data.get('Total_Fights', 0)]
+            f2_values = [wins2, win_rate2, f2_data.get('Total_Fights', 0)]
             
             fig = go.Figure(data=[
                 go.Bar(name=fighter1, x=metrics, y=f1_values, marker_color='#FF6B6B'),
@@ -802,12 +873,21 @@ elif view_option == "⚔️ Comparações Interativas":
         
         with col3:
             st.subheader(f"🥊 {fighter2}")
-            st.metric("Vitórias", f2_data['Wins'], f2_data['Wins'] - f1_data['Wins'])
-            st.metric("Win Rate", f"{f2_data['Win_Rate']}%", f"{f2_data['Win_Rate'] - f1_data['Win_Rate']:+.1f}%")
-            st.metric("Sequência Atual", f2_data['Current_Win_Streak'], f2_data['Current_Win_Streak'] - f1_data['Current_Win_Streak'])
-            st.write(f"**Postura:** {f2_data['Stance']}")
-            st.write(f"**Categoria:** {f2_data['Weight_Class']}")
-            st.write(f"**Idade:** {f2_data['Age']} anos")
+            
+            stance2 = f2_data.get('Stance', 'N/A')
+            weight_class2 = f2_data.get('Weight_Class', 'N/A')
+            age2 = f2_data.get('Age', 'N/A')
+            
+            st.metric("Vitórias", wins2, wins2 - wins1)
+            st.metric("Win Rate", f"{win_rate2}%", f"{win_rate2 - win_rate1:+.1f}%")
+            
+            if streak2 != 'N/A' and streak1 != 'N/A':
+                st.metric("Sequência Atual", streak2, streak2 - streak1)
+            
+            st.write(f"**Postura:** {stance2}")
+            st.write(f"**Categoria:** {weight_class2}")
+            if age2 != 'N/A':
+                st.write(f"**Idade:** {age2} anos")
         
         # Análise de vantagens
         st.markdown("---")
@@ -815,32 +895,35 @@ elif view_option == "⚔️ Comparações Interativas":
         
         advantages = []
         
-        if f1_data['Win_Rate'] > f2_data['Win_Rate']:
-            advantages.append((fighter1, "Melhor Win Rate", f1_data['Win_Rate'] - f2_data['Win_Rate']))
+        if win_rate1 > win_rate2:
+            advantages.append((fighter1, "Melhor Win Rate", win_rate1 - win_rate2))
         else:
-            advantages.append((fighter2, "Melhor Win Rate", f2_data['Win_Rate'] - f1_data['Win_Rate']))
+            advantages.append((fighter2, "Melhor Win Rate", win_rate2 - win_rate1))
         
-        if f1_data['Total_Fights'] > f2_data['Total_Fights']:
-            advantages.append((fighter1, "Mais Experiência", f1_data['Total_Fights'] - f2_data['Total_Fights']))
+        total_fights1 = f1_data.get('Total_Fights', 0)
+        total_fights2 = f2_data.get('Total_Fights', 0)
+        if total_fights1 > total_fights2:
+            advantages.append((fighter1, "Mais Experiência", total_fights1 - total_fights2))
         else:
-            advantages.append((fighter2, "Mais Experiência", f2_data['Total_Fights'] - f1_data['Total_Fights']))
+            advantages.append((fighter2, "Mais Experiência", total_fights2 - total_fights1))
         
-        if f1_data['Current_Win_Streak'] > f2_data['Current_Win_Streak']:
-            advantages.append((fighter1, "Melhor Momento", f1_data['Current_Win_Streak'] - f2_data['Current_Win_Streak']))
-        else:
-            advantages.append((fighter2, "Melhor Momento", f2_data['Current_Win_Streak'] - f1_data['Current_Win_Streak']))
+        if streak1 != 'N/A' and streak2 != 'N/A' and streak1 > streak2:
+            advantages.append((fighter1, "Melhor Momento", streak1 - streak2))
+        elif streak1 != 'N/A' and streak2 != 'N/A':
+            advantages.append((fighter2, "Melhor Momento", streak2 - streak1))
         
         # Mostrar vantagens
-        cols = st.columns(len(advantages))
-        for idx, (fighter, advantage, margin) in enumerate(advantages):
-            with cols[idx]:
-                st.markdown(f"""
-                <div style="text-align: center; padding: 1rem; border-radius: 10px; background: {'#FF6B6B' if fighter == fighter1 else '#4ECDC4'}; color: white;">
-                    <h4>{fighter}</h4>
-                    <p><strong>{advantage}</strong></p>
-                    <p>+{margin:.1f}</p>
-                </div>
-                """, unsafe_allow_html=True)
+        if advantages:
+            cols = st.columns(len(advantages))
+            for idx, (fighter, advantage, margin) in enumerate(advantages):
+                with cols[idx]:
+                    st.markdown(f"""
+                    <div style="text-align: center; padding: 1rem; border-radius: 10px; background: {'#FF6B6B' if fighter == fighter1 else '#4ECDC4'}; color: white;">
+                        <h4>{fighter}</h4>
+                        <p><strong>{advantage}</strong></p>
+                        <p>+{margin:.1f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 # ========== MOBILE VIEW ==========
 elif view_option == "📱 Mobile View":
@@ -889,8 +972,10 @@ elif view_option == "📱 Mobile View":
                 st.write(f"**Record:** {fighter['Wins']}W - {fighter['Losses']}L")
                 st.write(f"**Total Lutas:** {fighter['Total_Fights']}")
             with col2:
-                st.write(f"**Sequência:** {fighter['Current_Win_Streak']} vitórias")
-                st.write(f"**Postura:** {fighter['Stance']}")
+                streak = fighter.get('Current_Win_Streak', 'N/A')
+                stance = fighter.get('Stance', 'N/A')
+                st.write(f"**Sequência:** {streak}")
+                st.write(f"**Postura:** {stance}")
 
 # ========== COMO USAR ==========
 elif view_option == "❓ Como Usar":

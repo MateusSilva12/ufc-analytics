@@ -137,7 +137,56 @@ def load_model():
 # def create_real_features(fighter1, fighter2, df_fighters):
 
 # E SUBSTITUA por esta versão avançada:
-
+def create_interactive_radar_chart(f1_data, f2_data, fighter1, fighter2):
+    """Cria gráfico radar interativo para comparação de lutadores"""
+    
+    categories = ['Win Rate', 'Experiência', 'Sequência', 'Consistência', 'Vitórias']
+    
+    # Normalizar valores para escala 0-100
+    f1_win_rate = min(f1_data['Win_Rate'], 100)
+    f2_win_rate = min(f2_data['Win_Rate'], 100)
+    
+    f1_experience = min(f1_data['Total_Fights'] / 50 * 100, 100)  # Assume 50 como máximo
+    f2_experience = min(f2_data['Total_Fights'] / 50 * 100, 100)
+    
+    f1_streak = min(f1_data['Current_Win_Streak'] / 10 * 100, 100)  # Assume 10 como máximo
+    f2_streak = min(f2_data['Current_Win_Streak'] / 10 * 100, 100)
+    
+    f1_consistency = min(((f1_data['Wins'] - f1_data['Losses']) / max(f1_data['Total_Fights'], 1) + 1) * 50, 100)
+    f2_consistency = min(((f2_data['Wins'] - f2_data['Losses']) / max(f2_data['Total_Fights'], 1) + 1) * 50, 100)
+    
+    f1_wins = min(f1_data['Wins'] / 30 * 100, 100)  # Assume 30 vitórias como máximo
+    f2_wins = min(f2_data['Wins'] / 30 * 100, 100)
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatterpolar(
+        r=[f1_win_rate, f1_experience, f1_streak, f1_consistency, f1_wins],
+        theta=categories,
+        fill='toself',
+        name=fighter1,
+        line_color='#FF6B6B'
+    ))
+    
+    fig.add_trace(go.Scatterpolar(
+        r=[f2_win_rate, f2_experience, f2_streak, f2_consistency, f2_wins],
+        theta=categories,
+        fill='toself',
+        name=fighter2,
+        line_color='#4ECDC4'
+    ))
+    
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100]
+            )),
+        showlegend=True,
+        title="Comparação Radar - Métricas Normalizadas"
+    )
+    
+    return fig
 def create_advanced_prediction_features(fighter1, fighter2, df_fighters):
     """Cria features avançadas para previsão em tempo real"""
     

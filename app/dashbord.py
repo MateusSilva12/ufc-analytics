@@ -1,4 +1,4 @@
-# app/fighters_dashboard.py - VERSÃO FINAL COMPLETA
+# app/fighters_dashboard.py - VERSÃO FINAL COMPLETA COM CONVERSÃO DE PESO/ALTURA
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -100,6 +100,75 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def convert_weight_to_class(weight):
+    """Converte peso em libras para categoria UFC"""
+    if pd.isna(weight) or weight == '--' or weight == '':
+        return 'Não informada'
+    
+    try:
+        # Extrair número do peso (ex: "155 lbs." -> 155)
+        weight_str = str(weight).lower()
+        if 'lbs' in weight_str:
+            weight_num = int(''.join(filter(str.isdigit, weight_str.split('lbs')[0])))
+        else:
+            weight_num = int(''.join(filter(str.isdigit, weight_str)))
+        
+        # Mapear para categorias UFC
+        if weight_num <= 125:
+            return 'Flyweight'
+        elif weight_num <= 135:
+            return 'Bantamweight'
+        elif weight_num <= 145:
+            return 'Featherweight'
+        elif weight_num <= 155:
+            return 'Lightweight'
+        elif weight_num <= 170:
+            return 'Welterweight'
+        elif weight_num <= 185:
+            return 'Middleweight'
+        elif weight_num <= 205:
+            return 'Light Heavyweight'
+        else:
+            return 'Heavyweight'
+    except:
+        return 'Não informada'
+
+def convert_height_to_cm(height):
+    """Converte altura pés/polegadas para centímetros"""
+    if pd.isna(height) or height == '--' or height == '':
+        return None
+    
+    try:
+        # Exemplo: "5' 11\"" -> 5 pés, 11 polegadas
+        height_str = str(height).replace('"', '').replace("''", "")
+        parts = height_str.split("'")
+        
+        if len(parts) >= 2:
+            feet = int(parts[0].strip())
+            inches = int(parts[1].strip()) if parts[1].strip() else 0
+        else:
+            # Tentar outro formato
+            feet = int(height_str.split()[0]) if height_str.split() else 0
+            inches = int(height_str.split()[1]) if len(height_str.split()) > 1 else 0
+        
+        total_cm = (feet * 30.48) + (inches * 2.54)
+        return round(total_cm)
+    except:
+        return None
+
+def convert_reach_to_cm(reach):
+    """Converte alcance polegadas para centímetros"""
+    if pd.isna(reach) or reach == '--' or reach == '':
+        return None
+    
+    try:
+        # Exemplo: "72.0"" -> 72.0 polegadas
+        reach_str = str(reach).replace('"', '').replace("''", "")
+        reach_inches = float(reach_str)
+        return round(reach_inches * 2.54)
+    except:
+        return None
+
 @st.cache_data
 def load_data():
     """Carrega dados REAIS sem simulações"""
@@ -116,8 +185,25 @@ def load_data():
             df_fighters['Win_Rate'] = (df_fighters['Wins'] / df_fighters['Total_Fights'] * 100).round(1)
             df_fighters['Win_Rate'] = df_fighters['Win_Rate'].fillna(0)
         
+        # ✅ CORREÇÃO: Criar Weight_Class a partir da coluna Weight
+        if 'Weight' in df_fighters.columns and 'Weight_Class' not in df_fighters.columns:
+            df_fighters['Weight_Class'] = df_fighters['Weight'].apply(convert_weight_to_class)
+        
+        # ✅ CORREÇÃO: Criar Height_cms a partir da coluna Height
+        if 'Height' in df_fighters.columns and 'Height_cms' not in df_fighters.columns:
+            df_fighters['Height_cms'] = df_fighters['Height'].apply(convert_height_to_cm)
+        
+        # ✅ CORREÇÃO: Criar Reach_cms a partir da coluna Reach
+        if 'Reach' in df_fighters.columns and 'Reach_cms' not in df_fighters.columns:
+            df_fighters['Reach_cms'] = df_fighters['Reach'].apply(convert_reach_to_cm)
+        
         print(f"✅ Dados carregados: {len(df_fighters)} lutadores")
         print(f"📊 Colunas disponíveis: {list(df_fighters.columns)}")
+        
+        # Debug: mostrar quantos dados foram convertidos
+        if 'Weight_Class' in df_fighters.columns:
+            weight_classes = df_fighters['Weight_Class'].value_counts()
+            print(f"🎯 Categorias convertidas: {weight_classes.to_dict()}")
         
         return df_fighters, df_fights_basic, df_fights_real
         
@@ -242,6 +328,40 @@ def create_compatible_prediction_features(fighter1, fighter2, df_fighters):
         st.error(f"Erro ao criar features compatíveis: {e}")
         return pd.DataFrame()
 
+def get_fighter_display_data(fighter_data):
+    """Retorna dados formatados para exibição com tratamento elegante para dados faltantes"""
+    wins = fighter_data.get('Wins', 'N/A')
+    losses = fighter_data.get('Losses', 'N/A')
+    draws = fighter_data.get('Draws', 0)
+    win_rate = fighter_data.get('Win_Rate', 'N/A')
+    stance = fighter_data.get('Stance', 'Não informado')
+    weight_class = fighter_data.get('Weight_Class', 'Não informada')
+    streak = fighter_data.get('Current_Win_Streak', 'Não informada')
+    longest_streak = fighter_data.get('Longest_Win_Streak', 'Não informada')
+    age = fighter_data.get('Age', 'N/A')
+    height = fighter_data.get('Height', 'N/A')
+    weight = fighter_data.get('Weight', 'N/A')
+    reach = fighter_data.get('Reach', 'N/A')
+    
+    # Calcular sequência baseada no record se não existir
+    if streak == 'Não informada' and wins != 'N/A' and losses != 'N/A':
+        streak = f"≈ {wins}"  # Estimativa baseada no record
+    
+    return {
+        'wins': wins,
+        'losses': losses,
+        'draws': draws,
+        'win_rate': win_rate,
+        'stance': stance,
+        'weight_class': weight_class,
+        'streak': streak,
+        'longest_streak': longest_streak,
+        'age': age,
+        'height': height,
+        'weight': weight,
+        'reach': reach
+    }
+
 def create_timeline_analysis():
     """Cria análise temporal de performance"""
     dates = pd.date_range('2020-01-01', '2024-12-31', freq='ME')
@@ -265,34 +385,6 @@ def create_timeline_analysis():
     )
     
     return fig
-
-def get_fighter_display_data(fighter_data):
-    """Retorna dados formatados para exibição com tratamento elegante para dados faltantes"""
-    wins = fighter_data.get('Wins', 'N/A')
-    losses = fighter_data.get('Losses', 'N/A')
-    draws = fighter_data.get('Draws', 0)
-    win_rate = fighter_data.get('Win_Rate', 'N/A')
-    stance = fighter_data.get('Stance', 'Não informado')
-    weight_class = fighter_data.get('Weight_Class', 'Não informada')
-    streak = fighter_data.get('Current_Win_Streak', 'Não informada')
-    longest_streak = fighter_data.get('Longest_Win_Streak', 'Não informada')
-    age = fighter_data.get('Age', 'N/A')
-    
-    # Calcular sequência baseada no record se não existir
-    if streak == 'Não informada' and wins != 'N/A' and losses != 'N/A':
-        streak = f"≈ {wins}"  # Estimativa baseada no record
-    
-    return {
-        'wins': wins,
-        'losses': losses,
-        'draws': draws,
-        'win_rate': win_rate,
-        'stance': stance,
-        'weight_class': weight_class,
-        'streak': streak,
-        'longest_streak': longest_streak,
-        'age': age
-    }
 
 # ========== CARREGAMENTO DE DADOS ==========
 try:
@@ -322,6 +414,8 @@ if 'Alex Pereira' in df_fighters['Name'].values:
     st.sidebar.success(f"✅ Alex Pereira encontrado")
     st.sidebar.write(f"Record: {alex.get('Wins', 'N/A')}W-{alex.get('Losses', 'N/A')}L")
     st.sidebar.write(f"Win Rate: {alex.get('Win_Rate', 'N/A')}%")
+    if 'Weight_Class' in df_fighters.columns:
+        st.sidebar.write(f"Categoria: {alex.get('Weight_Class', 'Não informada')}")
 else:
     st.sidebar.error("❌ Alex Pereira NÃO encontrado nos dados")
 
@@ -334,8 +428,10 @@ complete_win_rates = len(df_fighters[df_fighters['Win_Rate'].notna()])
 
 if 'Weight_Class' in df_fighters.columns:
     complete_weight_classes = len(df_fighters[df_fighters['Weight_Class'].notna()])
+    weight_class_dist = df_fighters['Weight_Class'].value_counts()
 else:
     complete_weight_classes = 0
+    weight_class_dist = {}
 
 if 'Stance' in df_fighters.columns:
     complete_stances = len(df_fighters[df_fighters['Stance'].notna()])
@@ -346,6 +442,13 @@ st.sidebar.write(f"📈 Records: {complete_records}/{total_fighters}")
 st.sidebar.write(f"🎯 Win Rates: {complete_win_rates}/{total_fighters}")
 st.sidebar.write(f"⚖️ Categorias: {complete_weight_classes}/{total_fighters}")
 st.sidebar.write(f"🥊 Posturas: {complete_stances}/{total_fighters}")
+
+# Mostrar distribuição de categorias se disponível
+if not weight_class_dist.empty:
+    st.sidebar.markdown("### 🏆 Distribuição por Categoria")
+    for category, count in weight_class_dist.items():
+        if category != 'Não informada':
+            st.sidebar.write(f"• {category}: {count}")
 
 # Sidebar aprimorada
 with st.sidebar:
@@ -377,9 +480,10 @@ with st.sidebar:
     
     # Só mostrar filtro de categoria se existir
     if 'Weight_Class' in df_fighters.columns:
+        available_classes = [c for c in df_fighters['Weight_Class'].unique() if c != 'Não informada']
         weight_class_filter = st.multiselect(
             "Categoria de Peso",
-            options=df_fighters['Weight_Class'].unique(),
+            options=available_classes,
             default=[]
         )
     else:
@@ -438,14 +542,19 @@ if view_option == "🏠 Dashboard Premium":
         st.subheader("📊 Distribuição por Categoria de Peso")
         
         if 'Weight_Class' in df_fighters.columns:
-            weight_counts = df_fighters['Weight_Class'].value_counts()
-            fig = px.pie(
-                values=weight_counts.values,
-                names=weight_counts.index,
-                title="Distribuição de Lutadores por Categoria",
-                color_discrete_sequence=px.colors.sequential.RdBu
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            # Filtrar apenas categorias informadas
+            weight_data = df_fighters[df_fighters['Weight_Class'] != 'Não informada']
+            if not weight_data.empty:
+                weight_counts = weight_data['Weight_Class'].value_counts()
+                fig = px.pie(
+                    values=weight_counts.values,
+                    names=weight_counts.index,
+                    title="Distribuição de Lutadores por Categoria",
+                    color_discrete_sequence=px.colors.sequential.RdBu
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("ℹ️ Nenhuma categoria de peso informada nos dados")
         else:
             st.info("ℹ️ Dados de categoria de peso não disponíveis")
     
@@ -624,13 +733,21 @@ elif view_option == "📊 Análise Avançada":
         
         with col1:
             segmentation_options = ['Win_Rate', 'Total_Fights', 'Wins']
+            if 'Weight_Class' in df_fighters.columns:
+                segmentation_options.append('Weight_Class')
+            
             segmentation_var = st.selectbox("Variável para Segmentação", segmentation_options)
             
             segments = st.slider("Número de Segmentos", 2, 6, 3)
         
         with col2:
             # Criar segmentação
-            df_fighters['Segment'] = pd.cut(df_fighters[segmentation_var], segments, labels=[f'Grupo {i+1}' for i in range(segments)])
+            if segmentation_var == 'Weight_Class':
+                # Para categorias, usar as próprias categorias como segmentos
+                segments = len(df_fighters[segmentation_var].unique())
+                df_fighters['Segment'] = df_fighters[segmentation_var]
+            else:
+                df_fighters['Segment'] = pd.cut(df_fighters[segmentation_var], segments, labels=[f'Grupo {i+1}' for i in range(segments)])
             
             segment_stats = df_fighters.groupby('Segment').agg({
                 'Wins': 'mean',
@@ -710,6 +827,8 @@ elif view_option == "🎯 Predictor AI Pro":
                     <p><strong>Melhor Sequência:</strong> {f1_display['longest_streak']}</p>
                     <p><strong>Postura:</strong> {f1_display['stance']}</p>
                     <p><strong>Categoria:</strong> {f1_display['weight_class']}</p>
+                    <p><strong>Altura:</strong> {f1_display['height']}</p>
+                    <p><strong>Peso:</strong> {f1_display['weight']}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -732,6 +851,8 @@ elif view_option == "🎯 Predictor AI Pro":
                     <p><strong>Melhor Sequência:</strong> {f2_display['longest_streak']}</p>
                     <p><strong>Postura:</strong> {f2_display['stance']}</p>
                     <p><strong>Categoria:</strong> {f2_display['weight_class']}</p>
+                    <p><strong>Altura:</strong> {f2_display['height']}</p>
+                    <p><strong>Peso:</strong> {f2_display['weight']}</p>
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -864,6 +985,8 @@ elif view_option == "⚔️ Comparações Interativas":
             stance1 = f1_display['stance']
             weight_class1 = f1_display['weight_class']
             age1 = f1_display['age']
+            height1 = f1_display['height']
+            weight1 = f1_display['weight']
             
             wins2 = f2_display['wins']
             losses2 = f2_display['losses']
@@ -885,6 +1008,10 @@ elif view_option == "⚔️ Comparações Interativas":
             st.write(f"**Categoria:** {weight_class1}")
             if age1 != 'N/A':
                 st.write(f"**Idade:** {age1} anos")
+            if height1 != 'N/A':
+                st.write(f"**Altura:** {height1}")
+            if weight1 != 'N/A':
+                st.write(f"**Peso:** {weight1}")
         
         with col2:
             st.subheader("📊 Análise Visual")
@@ -925,6 +1052,8 @@ elif view_option == "⚔️ Comparações Interativas":
             stance2 = f2_display['stance']
             weight_class2 = f2_display['weight_class']
             age2 = f2_display['age']
+            height2 = f2_display['height']
+            weight2 = f2_display['weight']
             
             if wins2 != 'N/A' and wins1 != 'N/A':
                 st.metric("Vitórias", wins2, int(wins2) - int(wins1))
@@ -940,6 +1069,10 @@ elif view_option == "⚔️ Comparações Interativas":
             st.write(f"**Categoria:** {weight_class2}")
             if age2 != 'N/A':
                 st.write(f"**Idade:** {age2} anos")
+            if height2 != 'N/A':
+                st.write(f"**Altura:** {height2}")
+            if weight2 != 'N/A':
+                st.write(f"**Peso:** {weight2}")
         
         # Análise de vantagens
         st.markdown("---")
@@ -1027,6 +1160,7 @@ elif view_option == "📱 Mobile View":
             with col2:
                 st.write(f"**Sequência:** {fighter_display['streak']}")
                 st.write(f"**Postura:** {fighter_display['stance']}")
+                st.write(f"**Categoria:** {fighter_display['weight_class']}")
 
 # ========== COMO USAR ==========
 elif view_option == "❓ Como Usar":
